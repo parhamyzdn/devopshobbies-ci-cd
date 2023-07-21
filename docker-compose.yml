@@ -1,0 +1,95 @@
+version: "3.9"
+
+networks:
+  default:
+    name: web_net
+
+services:
+  db:
+    image: docker.parhamyz.ir/databases/postgres:14.1
+    container_name: postgres
+    environment:
+      - POSTGRES_DB=devopshobbies
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+
+  rabbitmq:
+    image: docker.parhamyz.ir/databases/rabbitmq:alpine
+    container_name: rabbitmq
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 30s
+      timeout: 30s
+      retries: 3
+
+  redis:
+    image: docker.parhamyz.ir/databases/redis:7
+    container_name: redis
+    volumes:
+      - redis-data:/data
+
+  django:
+    image: docker.parhamyz.ir/backend/backend:latest
+    container_name: django
+    command: python manage.py runserver 0.0.0.0:8000
+    # command: ./docker/web_entrypoint.sh
+    environment:
+      - DATABASE_URL=psql://user:password@db:5432/devopshobbies
+      - CELERY_BROKER_URL=amqp://guest:guest@rabbitmq:5672//
+      - SECRET_KEY=qt##2yb__s1*sc=7q2(yh!b)c(4yqjm+!@c@nu7#f9j&-)tl^d
+      - ALLOWED_HOSTS=["api.parhamyz.ir"]
+    ports:
+      - 8000:8000
+    volumes:
+      - .:/app
+    depends_on:
+      - db
+      - rabbitmq
+    restart: on-failure
+    labels:
+     - "traefik.enable=true"
+     - "traefik.docker.network=web_net"
+     - "traefik.http.routers.backend.entrypoints=http"
+     - "traefik.http.routers.backend.rule=Host(`api.parhamyz.ir`)"
+     - "traefik.http.routers.backend.service=backend-secure"
+     - "traefik.http.routers.backend.middlewares=https-redirect"
+     - "traefik.http.routers.backend-secure.entrypoints=https"
+     - "traefik.http.routers.backend-secure.rule=Host(`api.parhamyz.ir`)"
+     - "traefik.http.routers.backend-secure.tls=true"
+     - "traefik.http.routers.backend-secure.tls.options=default"
+     - "traefik.http.routers.backend-secure.tls.certresolver=mycert"
+     - "traefik.http.routers.backend-secure.service=backend-secure"
+     - "traefik.http.services.backend-secure.loadbalancer.server.port=8000"
+
+  celery:
+    image: docker.parhamyz.ir/backend/backend:latest
+    command: celery -A devopshobbies.tasks worker -l info --without-gossip --without-mingle --without-heartbeat
+    container_name: worker
+    # command: ./docker/celery_entrypoint.sh
+    environment:
+      - DATABASE_URL=psql://user:password@db:5432/devopshobbies
+      - CELERY_BROKER_URL=amqp://guest:guest@rabbitmq:5672//
+    volumes:
+      - .:/app
+    depends_on:
+      - db
+      - rabbitmq
+    restart: on-failure
+
+  beats:
+    image: docker.parhamyz.ir/backend/backend:latest
+    command: celery -A devopshobbies.tasks beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+    container_name: beats
+    # command: ./docker/beats_entrypoint.sh
+    environment:
+      - DATABASE_URL=psql://user:password@db:5432/devopshobbies
+      - CELERY_BROKER_URL=amqp://guest:guest@rabbitmq:5672//
+    volumes:
+      - .:/app
+    depends_on:
+      - db
+      - rabbitmq
+    restart: on-failure
+
+  volumes:
+    redis-data:
