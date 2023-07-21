@@ -41,7 +41,7 @@ services:
     ports:
       - 8000:8000
     volumes:
-      - .:/app
+      - ".:/app/backend/backend_api"
     depends_on:
       - db
       - rabbitmq
