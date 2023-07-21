@@ -91,5 +91,5 @@ services:
       - rabbitmq
     restart: on-failure
 
-  volumes:
-    redis-data:
+volumes:
+  redis-data:
