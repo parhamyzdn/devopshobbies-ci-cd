@@ -37,16 +37,16 @@ services:
       sh -c "./wait-for-it.sh db:5432 &&
             python manage.py makemigrations &&
             python manage.py migrate &&
-            python manage.py collectstatic --clear --noinput &&
-            python manage.py collectstatic --noinput &&
+            python manage.py collectstatic --clear --no-input &&
+            python manage.py collectstatic --no-input &&
             gunicorn config.wsgi:application -b 0.0.0.0:8000"
     environment:
+      - ALLOWED_HOSTS=api.parhamyz.ir
       - DATABASE_URL=psql://user:password@db:5432/devopshobbies
       - CELERY_BROKER_URL=amqp://guest:guest@rabbitmq:5672//
       - SECRET_KEY=qt##2yb__s1*sc=7q2(yh!b)c(4yqjm+!@c@nu7#f9j&-)tl^d
-      - ALLOWED_HOSTS=["api.parhamyz.ir"]
-    ports:
-      - 8000:8000
+        #ports:
+        #- 8000:8000
     volumes:
       - ".:/app/backend/backend_api"
     depends_on:
